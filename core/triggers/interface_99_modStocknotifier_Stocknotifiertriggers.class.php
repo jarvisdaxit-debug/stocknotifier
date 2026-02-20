@@ -121,7 +121,19 @@ class InterfaceStocknotifiertriggers extends DolibarrTriggers
                     dol_syslog("FAILURE: sendAlertEmail returned " . $result . " - Error: " . $stockAlert->error);
                 }
             } else {
-                dol_syslog("No alert needed - stock above threshold OR alert already sent");
+                // Get more details about why no alert
+                dol_syslog("No alert needed - checking why...");
+                
+                // Direct query to get stock info
+                $sql = "SELECT p.rowid, p.ref, p.seuil_stock_alerte, COALESCE(ps.stock, 0) as stock_actuel";
+                $sql .= " FROM ".MAIN_DB_PREFIX."product as p";
+                $sql .= " LEFT JOIN (SELECT fk_product, SUM(reel) as stock FROM ".MAIN_DB_PREFIX."product_stock GROUP BY fk_product) as ps ON p.rowid = ps.fk_product";
+                $sql .= " WHERE p.rowid = ".((int) $product_id);
+                
+                $resql = $db->query($sql);
+                if ($resql && $obj = $db->fetch_object($resql)) {
+                    dol_syslog("DEBUG - Product: ".$obj->ref." | Stock: ".$obj->stock_actuel." | Threshold: ".$obj->seuil_stock_alerte);
+                }
             }
         } catch (Exception $e) {
             dol_syslog("EXCEPTION: " . $e->getMessage());
