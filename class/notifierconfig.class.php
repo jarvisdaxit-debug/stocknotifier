@@ -10,100 +10,157 @@
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 
+/**
+ * Class NotifierConfig
+ * Handles configuration and alert state management
+ */
 class NotifierConfig extends CommonObject
 {
     public $element = 'notifierconfig';
     public $table_element = 'stocknotifier_config';
     public $picto = 'generic';
 
-    public $alert_email;
-    public $exclude_nosell;
-    public $exclude_nobuy;
-    public $alert_sent;
-    public $warehouses;
+    /** @var DoliDB Database handler */
+    protected $db;
+    
+    /** @var array Cache for configuration values */
+    private $cache = array();
 
     public function __construct($db)
     {
         $this->db = $db;
     }
 
-    public function getAlertEmail()
+    /**
+     * Get alert email address
+     * @return string Email address
+     */
+    public function getAlertEmail(): string
     {
-        global $conf;
-        $email = getDolGlobalString('STOCKNOTIFIER_ALERT_EMAIL');
-        if (empty($email)) {
-            $email = getDolGlobalString('MAIN_INFO_SOCIETE_MAIL');
+        if (!isset($this->cache['email'])) {
+            $email = getDolGlobalString('STOCKNOTIFIER_ALERT_EMAIL');
+            if (empty($email)) {
+                $email = getDolGlobalString('MAIN_INFO_SOCIETE_MAIL');
+            }
+            $this->cache['email'] = $email;
         }
-        return $email;
+        return $this->cache['email'];
     }
 
-    public function shouldExcludeNoSell()
+    /**
+     * Check if products not for sale should be excluded
+     * @return bool True if exclude
+     */
+    public function shouldExcludeNoSell(): bool
     {
-        global $conf;
-        return getDolGlobalInt('STOCKNOTIFIER_EXCLUDE_NOSELL', 1);
-    }
-
-    public function shouldExcludeNoBuy()
-    {
-        global $conf;
-        return getDolGlobalInt('STOCKNOTIFIER_EXCLUDE_NOBUY', 0);
-    }
-
-    public function getSelectedWarehouses()
-    {
-        global $conf;
-        $warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES');
-        if (empty($warehouses)) {
-            return array(); // Empty means all warehouses
+        if (!isset($this->cache['exclude_nosell'])) {
+            $this->cache['exclude_nosell'] = getDolGlobalInt('STOCKNOTIFIER_EXCLUDE_NOSELL', 1);
         }
-        return explode(',', $warehouses);
+        return (bool) $this->cache['exclude_nosell'];
     }
 
-    public function hasWarehouseSelection()
+    /**
+     * Check if products not for purchase should be excluded
+     * @return bool True if exclude
+     */
+    public function shouldExcludeNoBuy(): bool
     {
-        global $conf;
-        $warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES');
+        if (!isset($this->cache['exclude_nobuy'])) {
+            $this->cache['exclude_nobuy'] = getDolGlobalInt('STOCKNOTIFIER_EXCLUDE_NOBUY', 0);
+        }
+        return (bool) $this->cache['exclude_nobuy'];
+    }
+
+    /**
+     * Get selected warehouse IDs
+     * @return int[] Array of warehouse IDs (empty = all warehouses)
+     */
+    public function getSelectedWarehouses(): array
+    {
+        if (!isset($this->cache['warehouses'])) {
+            $warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES');
+            if (empty($warehouses)) {
+                $this->cache['warehouses'] = array();
+            } else {
+                $this->cache['warehouses'] = array_map('intval', explode(',', $warehouses));
+            }
+        }
+        return $this->cache['warehouses'];
+    }
+
+    /**
+     * Check if warehouse selection is configured
+     * @return bool True if selection exists
+     */
+    public function hasWarehouseSelection(): bool
+    {
+        $warehouses = $this->getSelectedWarehouses();
         return !empty($warehouses);
     }
 
-    public function isAlertSent($product_id)
+    /**
+     * Get alert sent product IDs
+     * @return int[] Array of product IDs
+     */
+    private function getAlertSentArray(): array
     {
-        global $conf;
         $alerted = getDolGlobalString('STOCKNOTIFIER_ALERT_SENT');
-        $alertedArray = !empty($alerted) ? explode(',', $alerted) : array();
-        return in_array($product_id, $alertedArray);
+        return !empty($alerted) ? array_map('intval', explode(',', $alerted)) : array();
     }
 
-    public function markAlertSent($product_id)
+    /**
+     * Check if alert was already sent for product
+     * @param int $product_id Product ID
+     * @return bool True if alert sent
+     */
+    public function isAlertSent(int $product_id): bool
     {
-        global $conf;
-        $alerted = getDolGlobalString('STOCKNOTIFIER_ALERT_SENT');
-        $alertedArray = !empty($alerted) ? explode(',', $alerted) : array();
+        $alertedArray = $this->getAlertSentArray();
+        return in_array($product_id, $alertedArray, true);
+    }
+
+    /**
+     * Mark alert as sent for product
+     * @param int $product_id Product ID
+     * @return int Result
+     */
+    public function markAlertSent(int $product_id): int
+    {
+        $alertedArray = $this->getAlertSentArray();
         
-        if (!in_array($product_id, $alertedArray)) {
+        if (!in_array($product_id, $alertedArray, true)) {
             $alertedArray[] = $product_id;
             $newValue = implode(',', $alertedArray);
-            dolibarr_set_const($this->db, 'STOCKNOTIFIER_ALERT_SENT', $newValue, 'chaine', 0, '', $conf->entity);
+            return dolibarr_set_const($this->db, 'STOCKNOTIFIER_ALERT_SENT', $newValue, 'chaine', 0, '', $this->db->entity);
         }
+        return 0;
     }
 
-    public function resetAlertSent($product_id)
+    /**
+     * Reset alert sent flag for product
+     * @param int $product_id Product ID
+     * @return int Result
+     */
+    public function resetAlertSent(int $product_id): int
     {
-        global $conf;
-        $alerted = getDolGlobalString('STOCKNOTIFIER_ALERT_SENT');
-        $alertedArray = !empty($alerted) ? explode(',', $alerted) : array();
+        $alertedArray = $this->getAlertSentArray();
         
-        $key = array_search($product_id, $alertedArray);
+        $key = array_search($product_id, $alertedArray, true);
         if ($key !== false) {
             unset($alertedArray[$key]);
             $newValue = implode(',', array_values($alertedArray));
-            dolibarr_set_const($this->db, 'STOCKNOTIFIER_ALERT_SENT', $newValue, 'chaine', 0, '', $conf->entity);
+            return dolibarr_set_const($this->db, 'STOCKNOTIFIER_ALERT_SENT', $newValue, 'chaine', 0, '', $this->db->entity);
         }
+        return 0;
     }
 
-    public function resetAllAlertsSent()
+    /**
+     * Reset all alert sent flags
+     * @return int Result
+     */
+    public function resetAllAlertsSent(): int
     {
-        global $conf;
-        dolibarr_set_const($this->db, 'STOCKNOTIFIER_ALERT_SENT', '', 'chaine', 0, '', $conf->entity);
+        $this->cache = array(); // Clear cache
+        return dolibarr_set_const($this->db, 'STOCKNOTIFIER_ALERT_SENT', '', 'chaine', 0, '', $this->db->entity);
     }
 }

@@ -11,36 +11,49 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 dol_include_once('/stocknotifier/class/notifierconfig.class.php');
 
+/**
+ * Class StockAlert
+ * Handles stock level checking and alert notifications
+ */
 class StockAlert extends CommonObject
 {
     public $element = 'stockalert';
     public $table_element = '';
 
+    /** @var NotifierConfig Configuration cache */
+    private $config;
+
     public function __construct($db)
     {
         $this->db = $db;
+        $this->config = new NotifierConfig($this->db);
     }
 
-    public function checkProductStock($product_id)
+    /**
+     * Check product stock level against threshold
+     * 
+     * @param int $product_id Product ID to check
+     * @return array|null Return alert data if below threshold, null otherwise
+     */
+    public function checkProductStock(int $product_id): ?array
     {
-        global $conf;
-
-        $config = new NotifierConfig($this->db);
+        $selectedWarehouses = $this->config->getSelectedWarehouses();
+        
+        // Build warehouse filter safely
+        $warehouseFilter = '';
+        if (!empty($selectedWarehouses)) {
+            $warehouseIds = array_map('intval', $selectedWarehouses);
+            $warehouseFilter = ' AND ps.fk_entrepot IN ('.implode(',', $warehouseIds).')';
+        }
 
         $sql = "SELECT p.rowid, p.ref, p.label, p.seuil_stock_alerte, p.tosell, p.tobuy,";
         $sql .= " COALESCE(ps.stock, 0) as stock_actuel";
         $sql .= " FROM ".MAIN_DB_PREFIX."product as p";
         $sql .= " LEFT JOIN (";
         $sql .= "   SELECT fk_product, SUM(reel) as stock";
-        $sql .= "   FROM ".MAIN_DB_PREFIX."product_stock";
-        
-        // Filter by selected warehouses if configured
-        $selected_warehouses = $config->getSelectedWarehouses();
-        if (!empty($selected_warehouses)) {
-            $warehouse_ids = implode(',', array_map('intval', $selected_warehouses));
-            $sql .= "   WHERE fk_entrepot IN (".$warehouse_ids.")";
-        }
-        
+        $sql .= "   FROM ".MAIN_DB_PREFIX."product_stock as ps";
+        $sql .= "   WHERE 1=1";
+        $sql .= $warehouseFilter;
         $sql .= "   GROUP BY fk_product";
         $sql .= " ) as ps ON p.rowid = ps.fk_product";
         $sql .= " WHERE p.rowid = ".((int) $product_id);
@@ -49,74 +62,81 @@ class StockAlert extends CommonObject
 
         $resql = $this->db->query($sql);
 
-        if ($resql) {
-            $obj = $this->db->fetch_object($resql);
-            $this->db->free($resql);
-
-            if ($obj) {
-                $excludeNoSell = $config->shouldExcludeNoSell();
-                $excludeNoBuy = $config->shouldExcludeNoBuy();
-
-                if ($excludeNoSell && $obj->tosell != 1) {
-                    return null;
-                }
-                if ($excludeNoBuy && $obj->tobuy != 1) {
-                    return null;
-                }
-
-                if (!empty($obj->seuil_stock_alerte) && $obj->seuil_stock_alerte > 0) {
-                    if ($obj->stock_actuel <= $obj->seuil_stock_alerte) {
-                        if (!$config->isAlertSent($obj->rowid)) {
-                            return array(
-                                'rowid' => $obj->rowid,
-                                'ref' => $obj->ref,
-                                'label' => $obj->label,
-                                'stock_actuel' => $obj->stock_actuel,
-                                'seuil_alerte' => $obj->seuil_stock_alerte,
-                                'manquant' => max(0, $obj->seuil_stock_alerte - $obj->stock_actuel)
-                            );
-                        }
-                    } else {
-                        $config->resetAlertSent($obj->rowid);
-                    }
-                }
-            }
-            return null;
-        } else {
+        if (!$resql) {
             $this->error = $this->db->lasterror();
             dol_syslog(get_class($this)."::checkProductStock ERROR: ".$this->error, LOG_ERR);
-            return -1;
+            return null;
         }
+
+        $obj = $this->db->fetch_object($resql);
+        $this->db->free($resql);
+
+        if (!$obj) {
+            return null;
+        }
+
+        // Apply exclusion filters
+        if ($this->config->shouldExcludeNoSell() && $obj->tosell != 1) {
+            return null;
+        }
+        if ($this->config->shouldExcludeNoBuy() && $obj->tobuy != 1) {
+            return null;
+        }
+
+        // Check stock threshold
+        if (empty($obj->seuil_stock_alerte) || $obj->seuil_stock_alerte <= 0) {
+            return null;
+        }
+
+        if ($obj->stock_actuel <= $obj->seuil_stock_alerte) {
+            if (!$this->config->isAlertSent($obj->rowid)) {
+                return array(
+                    'rowid' => (int) $obj->rowid,
+                    'ref' => $obj->ref,
+                    'label' => $obj->label,
+                    'stock_actuel' => (int) $obj->stock_actuel,
+                    'seuil_alerte' => (int) $obj->seuil_alerte,
+                    'manquant' => max(0, $obj->seuil_alerte - $obj->stock_actuel)
+                );
+            }
+        } else {
+            // Stock recovered, reset alert flag
+            $this->config->resetAlertSent($obj->rowid);
+        }
+
+        return null;
     }
 
-    public function sendAlertEmail($product)
+    /**
+     * Send alert email for product
+     * 
+     * @param array $product Product data
+     * @return int 1 on success, -1 on error, 0 on invalid input
+     */
+    public function sendAlertEmail(array $product): int
     {
-        global $conf, $langs, $user;
-
         if (empty($product) || !is_array($product)) {
             return 0;
         }
 
-        $config = new NotifierConfig($this->db);
-        $to = $config->getAlertEmail();
-
+        $to = $this->config->getAlertEmail();
         if (empty($to)) {
             $this->error = 'No email configured for alerts';
             dol_syslog(get_class($this)."::sendAlertEmail ERROR: ".$this->error, LOG_ERR);
             return -1;
         }
 
+        global $langs;
         $langs->load("stocknotifier@stocknotifier");
 
         $subject = $langs->trans("StockAlertEmailSubject", $product['ref']);
+        
         $from = getDolGlobalString('MAIN_MAIL_EMAIL_FROM');
         if (empty($from)) {
             $from = getDolGlobalString('MAIN_INFO_SOCIETE_MAIL');
         }
 
         $message = $this->buildEmailBody($product);
-
-        require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 
         $mailfile = new CMailFile(
             $subject,
@@ -139,69 +159,55 @@ class StockAlert extends CommonObject
 
         if ($mailfile->sendfile()) {
             dol_syslog(get_class($this)."::sendAlertEmail Email sent successfully to ".$to, LOG_INFO);
-            $config->markAlertSent($product['rowid']);
+            $this->config->markAlertSent($product['rowid']);
             return 1;
-        } else {
-            $this->error = $mailfile->error;
-            dol_syslog(get_class($this)."::sendAlertEmail ERROR: ".$this->error, LOG_ERR);
-            return -1;
         }
+
+        $this->error = $mailfile->error;
+        dol_syslog(get_class($this)."::sendAlertEmail ERROR: ".$this->error, LOG_ERR);
+        return -1;
     }
 
-    private function buildEmailBody($product)
+    /**
+     * Build HTML email body
+     * 
+     * @param array $product Product data
+     * @return string HTML email content
+     */
+    private function buildEmailBody(array $product): string
     {
-        global $langs, $conf;
+        global $langs;
 
-        $langs->load("stocknotifier@stocknotifier");
-
-        $html = '<!DOCTYPE html>';
-        $html .= '<html>';
-        $html .= '<head>';
-        $html .= '<meta charset="utf-8">';
-        $html .= '<style>';
-        $html .= 'body { font-family: Arial, sans-serif; color: #333; padding: 20px; }';
-        $html .= 'table { border-collapse: collapse; width: 100%; margin: 20px 0; }';
-        $html .= 'th { background-color: #f4f4f4; padding: 10px; text-align: left; border: 1px solid #ddd; }';
-        $html .= 'td { padding: 8px; border: 1px solid #ddd; }';
-        $html .= '.warning { color: #d9534f; font-weight: bold; }';
-        $html .= '.footer { margin-top: 30px; font-size: 12px; color: #777; }';
-        $html .= '</style>';
-        $html .= '</head>';
-        $html .= '<body>';
+        $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>';
+        $html .= 'body{font-family:Arial,sans-serif;color:#333;padding:20px}';
+        $html .= 'table{border-collapse:collapse;width:100%;margin:20px 0}';
+        $html .= 'th{background-color:#f4f4f4;padding:10px;text-align:left;border:1px solid #ddd}';
+        $html .= 'td{padding:8px;border:1px solid #ddd}';
+        $html .= '.warning{color:#d9534f;font-weight:bold}';
+        $html .= '.footer{margin-top:30px;font-size:12px;color:#777}';
+        $html .= '</style></head><body>';
         
         $html .= '<h2>'.$langs->trans("StockAlertEmailTitle").'</h2>';
         $html .= '<p>'.$langs->trans("StockAlertEmailIntro").'</p>';
         
-        $html .= '<table>';
-        $html .= '<thead>';
-        $html .= '<tr>';
+        $html .= '<table><thead><tr>';
         $html .= '<th>'.$langs->trans("Ref").'</th>';
         $html .= '<th>'.$langs->trans("Label").'</th>';
         $html .= '<th>'.$langs->trans("CurrentStock").'</th>';
         $html .= '<th>'.$langs->trans("AlertThreshold").'</th>';
         $html .= '<th>'.$langs->trans("MissingQuantity").'</th>';
-        $html .= '</tr>';
-        $html .= '</thead>';
-        $html .= '<tbody>';
-
-        $html .= '<tr>';
+        $html .= '</tr></thead><tbody><tr>';
         $html .= '<td>'.dol_escape_htmltag($product['ref']).'</td>';
         $html .= '<td>'.dol_escape_htmltag($product['label']).'</td>';
-        $html .= '<td class="warning">'.intval($product['stock_actuel']).'</td>';
-        $html .= '<td>'.intval($product['seuil_alerte']).'</td>';
-        $html .= '<td class="warning">'.intval($product['manquant']).'</td>';
-        $html .= '</tr>';
-
-        $html .= '</tbody>';
-        $html .= '</table>';
+        $html .= '<td class="warning">'.(int) $product['stock_actuel'].'</td>';
+        $html .= '<td>'.(int) $product['seuil_alerte'].'</td>';
+        $html .= '<td class="warning">'.(int) $product['manquant'].'</td>';
+        $html .= '</tr></tbody></table>';
         
         $html .= '<div class="footer">';
         $html .= '<p>'.$langs->trans("StockAlertEmailFooter").'</p>';
-        $html .= '<p>'.getDolGlobalString('MAIN_INFO_SOCIETE_NOM').'</p>';
-        $html .= '</div>';
-        
-        $html .= '</body>';
-        $html .= '</html>';
+        $html .= '<p>'.dol_escape_htmltag(getDolGlobalString('MAIN_INFO_SOCIETE_NOM')).'</p>';
+        $html .= '</div></body></html>';
 
         return $html;
     }
