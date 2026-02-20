@@ -1,0 +1,45 @@
+# Copyright (C) 2025 Daxit Solutions
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+
+CHARSET=UTF-8
+
+Module136406Name=Stock Notifier
+Module136406Desc=Automatic critical stock alert system
+
+StocknotifierSetup=Stock Notifier Setup
+Settings=Settings
+About=About
+
+AlertEmailAddress=Alert Email Address
+ExcludeProductsNotForSale=Exclude products not for sale
+ExcludeProductsNotForPurchase=Exclude products not for purchase
+WarehousesToMonitor=Warehouses to Monitor
+WarehousesToMonitorHelp=Select the warehouses to include in stock calculations. If none are selected, all active warehouses are included.
+NoActiveWarehousesFound=No active warehouses found
+ResetAllAlerts=Reset All Alerts
+AlertsResetSuccess=All alerts have been reset successfully
+
+TriggerInstructions=Alert Operation
+TriggerDescription=Email alerts are automatically sent on every stock movement (entry, exit, correction, transfer) when a product's stock reaches or falls below its alert threshold. Only one alert is sent per product until stock rises above the threshold.
+
+StockAlertEmailSubject=Stock Alert: %s low stock
+StockAlertEmailTitle=Critical Stock Alert
+StockAlertEmailIntro=The following product has reached a critical stock level due to a stock movement.
+StockAlertEmailFooter=This is an automated message. Please check stock levels and place an order if necessary.
+
+Ref=Reference
+Label=Label
+CurrentStock=Current Stock
+AlertThreshold=Alert Threshold
+MissingQuantity=Missing Quantity
+
+ModuleName=Module Name
+Version=Version
+Publisher=Publisher
+URL=Website
+License=License
+

@@ -67,6 +67,13 @@ class modStocknotifier extends DolibarrModules
                 '',
                 'Produits déjà alertés (anti-spam)',
                 0
+            ),
+            4 => array(
+                'STOCKNOTIFIER_WAREHOUSES',
+                'chaine',
+                '',
+                'Entrepôts à surveiller (IDs séparés par virgules)',
+                0
             )
         );
 

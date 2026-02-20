@@ -31,10 +31,15 @@ if ($action == 'setvar') {
     $alert_email = GETPOST('STOCKNOTIFIER_ALERT_EMAIL', 'email');
     $exclude_nosell = GETPOST('STOCKNOTIFIER_EXCLUDE_NOSELL', 'int') ? 1 : 0;
     $exclude_nobuy = GETPOST('STOCKNOTIFIER_EXCLUDE_NOBUY', 'int') ? 1 : 0;
+    
+    // Get selected warehouses
+    $selected_warehouses = GETPOST('STOCKNOTIFIER_WAREHOUSES', 'array');
+    $warehouses_value = !empty($selected_warehouses) ? implode(',', array_map('intval', $selected_warehouses)) : '';
 
     $res = dolibarr_set_const($db, 'STOCKNOTIFIER_ALERT_EMAIL', $alert_email, 'chaine', 0, '', $conf->entity);
     $res = dolibarr_set_const($db, 'STOCKNOTIFIER_EXCLUDE_NOSELL', $exclude_nosell, 'chaine', 0, '', $conf->entity);
     $res = dolibarr_set_const($db, 'STOCKNOTIFIER_EXCLUDE_NOBUY', $exclude_nobuy, 'chaine', 0, '', $conf->entity);
+    $res = dolibarr_set_const($db, 'STOCKNOTIFIER_WAREHOUSES', $warehouses_value, 'chaine', 0, '', $conf->entity);
 
     if ($res > 0) {
         setEventMessages($langs->trans("SetupSaved"), null, 'mesgs');
@@ -92,6 +97,66 @@ print '<td>';
 print '<input type="checkbox" name="STOCKNOTIFIER_EXCLUDE_NOBUY" value="1"'.(getDolGlobalInt('STOCKNOTIFIER_EXCLUDE_NOBUY', 0) ? ' checked' : '').'>';
 print '</td>';
 print '</tr>';
+
+// Warehouse selection
+print '<tr class="oddeven">';
+print '<td colspan="2">';
+print '<strong>'.$langs->trans("WarehousesToMonitor").'</strong>';
+print '<br>';
+print '<span class="opacitymedium">'.$langs->trans("WarehousesToMonitorHelp").'</span>';
+print '</td>';
+print '</tr>';
+
+// Fetch all active warehouses
+$sql = "SELECT rowid, libelle as label, lieu as location";
+$sql .= " FROM ".MAIN_DB_PREFIX."entrepot";
+$sql .= " WHERE statut = 1";
+$sql .= " ORDER BY libelle ASC";
+
+$resql = $db->query($sql);
+$warehouses = array();
+if ($resql) {
+    while ($obj = $db->fetch_object($resql)) {
+        $warehouses[] = $obj;
+    }
+    $db->free($resql);
+}
+
+// Get selected warehouses
+$saved_warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES', '');
+$saved_warehouse_ids = !empty($saved_warehouses) ? explode(',', $saved_warehouses) : array();
+
+if (!empty($warehouses)) {
+    print '<tr class="oddeven">';
+    print '<td colspan="2">';
+    print '<div style="max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0;">';
+    
+    $i = 0;
+    foreach ($warehouses as $warehouse) {
+        $checked = in_array($warehouse->rowid, $saved_warehouse_ids) ? ' checked' : '';
+        $label = dol_escape_htmltag($warehouse->label);
+        $location = !empty($warehouse->location) ? ' - '.dol_escape_htmltag($warehouse->location) : '';
+        
+        print '<div style="margin: 5px 0;">';
+        print '<label style="display: inline-flex; align-items: center; cursor: pointer;">';
+        print '<input type="checkbox" name="STOCKNOTIFIER_WAREHOUSES[]" value="'.intval($warehouse->rowid).'"'.$checked.' style="margin-right: 8px;">';
+        print '<strong>'.$label.'</strong>'.$location;
+        print '</label>';
+        print '</div>';
+        
+        $i++;
+    }
+    
+    print '</div>';
+    print '</td>';
+    print '</tr>';
+} else {
+    print '<tr class="oddeven">';
+    print '<td colspan="2">';
+    print '<span class="warning">'.$langs->trans("NoActiveWarehousesFound").'</span>';
+    print '</td>';
+    print '</tr>';
+}
 
 print '</table>';
 

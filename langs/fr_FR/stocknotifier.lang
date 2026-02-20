@@ -17,6 +17,9 @@ About=À propos
 AlertEmailAddress=Adresse e-mail pour les alertes
 ExcludeProductsNotForSale=Exclure les produits non destinés à la vente
 ExcludeProductsNotForPurchase=Exclure les produits non destinés à l'achat
+WarehousesToMonitor=Entrepôts à surveiller
+WarehousesToMonitorHelp=Sélectionnez les entrepôts à prendre en compte pour le calcul du stock. Si aucun n'est sélectionné, tous les entrepôts actifs sont inclus.
+NoActiveWarehousesFound=Aucun entrepôt actif trouvé
 ResetAllAlerts=Réinitialiser toutes les alertes
 AlertsResetSuccess=Toutes les alertes ont été réinitialisées avec succès
 

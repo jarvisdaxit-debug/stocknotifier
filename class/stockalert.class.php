@@ -33,6 +33,14 @@ class StockAlert extends CommonObject
         $sql .= " LEFT JOIN (";
         $sql .= "   SELECT fk_product, SUM(reel) as stock";
         $sql .= "   FROM ".MAIN_DB_PREFIX."product_stock";
+        
+        // Filter by selected warehouses if configured
+        $selected_warehouses = $config->getSelectedWarehouses();
+        if (!empty($selected_warehouses)) {
+            $warehouse_ids = implode(',', array_map('intval', $selected_warehouses));
+            $sql .= "   WHERE fk_entrepot IN (".$warehouse_ids.")";
+        }
+        
         $sql .= "   GROUP BY fk_product";
         $sql .= " ) as ps ON p.rowid = ps.fk_product";
         $sql .= " WHERE p.rowid = ".((int) $product_id);

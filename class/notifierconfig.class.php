@@ -20,6 +20,7 @@ class NotifierConfig extends CommonObject
     public $exclude_nosell;
     public $exclude_nobuy;
     public $alert_sent;
+    public $warehouses;
 
     public function __construct($db)
     {
@@ -46,6 +47,23 @@ class NotifierConfig extends CommonObject
     {
         global $conf;
         return getDolGlobalInt('STOCKNOTIFIER_EXCLUDE_NOBUY', 0);
+    }
+
+    public function getSelectedWarehouses()
+    {
+        global $conf;
+        $warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES');
+        if (empty($warehouses)) {
+            return array(); // Empty means all warehouses
+        }
+        return explode(',', $warehouses);
+    }
+
+    public function hasWarehouseSelection()
+    {
+        global $conf;
+        $warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES');
+        return !empty($warehouses);
     }
 
     public function isAlertSent($product_id)
