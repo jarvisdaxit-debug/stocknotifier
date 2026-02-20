@@ -21,7 +21,7 @@ class NotifierConfig extends CommonObject
     public $picto = 'generic';
 
     /** @var DoliDB Database handler */
-    protected $db;
+    public $db;
     
     /** @var array Cache for configuration values */
     private $cache = array();
