@@ -7,13 +7,11 @@
  * (at your option) any later version.
  */
 
-// ========== Robust main.inc.php includes ==========
 $res = 0;
 if (!$res && file_exists("../main.inc.php")) $res = @include "../main.inc.php";
 if (!$res && file_exists("../../main.inc.php")) $res = @include "../../main.inc.php";
 if (!$res && file_exists("../../../main.inc.php")) $res = @include "../../../main.inc.php";
 if (!$res) die("Include of main fails");
-// ================================================
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 dol_include_once('/stocknotifier/lib/stocknotifier.lib.php');
@@ -31,8 +29,7 @@ if ($action == 'setvar') {
     $alert_email = GETPOST('STOCKNOTIFIER_ALERT_EMAIL', 'email');
     $exclude_nosell = GETPOST('STOCKNOTIFIER_EXCLUDE_NOSELL', 'int') ? 1 : 0;
     $exclude_nobuy = GETPOST('STOCKNOTIFIER_EXCLUDE_NOBUY', 'int') ? 1 : 0;
-    
-    // Get selected warehouses
+
     $selected_warehouses = GETPOST('STOCKNOTIFIER_WAREHOUSES', 'array');
     $warehouses_value = !empty($selected_warehouses) ? implode(',', array_map('intval', $selected_warehouses)) : '';
 
@@ -67,7 +64,9 @@ print load_fiche_titre($langs->trans("StocknotifierSetup"), $linkback, 'title_se
 $head = stocknotifierAdminPrepareHead();
 print dol_get_fiche_head($head, 'settings', $langs->trans("StocknotifierSetup"), -1, 'generic');
 
-print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
+$self = dol_escape_htmltag($_SERVER["PHP_SELF"]);
+
+print '<form method="POST" action="'.$self.'">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="setvar">';
 
@@ -98,7 +97,6 @@ print '<input type="checkbox" name="STOCKNOTIFIER_EXCLUDE_NOBUY" value="1"'.(get
 print '</td>';
 print '</tr>';
 
-// Warehouse selection
 print '<tr class="oddeven">';
 print '<td colspan="2">';
 print '<strong>'.$langs->trans("WarehousesToMonitor").'</strong>';
@@ -107,10 +105,12 @@ print '<span class="opacitymedium">'.$langs->trans("WarehousesToMonitorHelp").'<
 print '</td>';
 print '</tr>';
 
-// Fetch all active warehouses
+$entity = (int) $conf->entity;
+
 $sql = "SELECT e.rowid, e.libelle as label, e.lieu as location";
 $sql .= " FROM ".MAIN_DB_PREFIX."entrepot as e";
 $sql .= " WHERE e.statut = 1";
+$sql .= " AND e.entity IN (0,".$entity.")";
 $sql .= " ORDER BY e.libelle ASC";
 
 dol_syslog("admin/setup.php::Fetch warehouses", LOG_DEBUG);
@@ -127,7 +127,6 @@ if ($resql) {
     dol_syslog("admin/setup.php::Error fetching warehouses: ".$db->lasterror(), LOG_ERR);
 }
 
-// Get selected warehouses
 $saved_warehouses = getDolGlobalString('STOCKNOTIFIER_WAREHOUSES', '');
 $saved_warehouse_ids = !empty($saved_warehouses) ? explode(',', $saved_warehouses) : array();
 
@@ -135,23 +134,20 @@ if (!empty($warehouses)) {
     print '<tr class="oddeven">';
     print '<td colspan="2">';
     print '<div style="max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0;">';
-    
-    $i = 0;
+
     foreach ($warehouses as $warehouse) {
-        $checked = in_array($warehouse->rowid, $saved_warehouse_ids) ? ' checked' : '';
+        $checked = in_array((string) $warehouse->rowid, array_map('strval', $saved_warehouse_ids), true) ? ' checked' : '';
         $label = dol_escape_htmltag($warehouse->label);
         $location = !empty($warehouse->location) ? ' - '.dol_escape_htmltag($warehouse->location) : '';
-        
+
         print '<div style="margin: 5px 0;">';
         print '<label style="display: inline-flex; align-items: center; cursor: pointer;">';
         print '<input type="checkbox" name="STOCKNOTIFIER_WAREHOUSES[]" value="'.intval($warehouse->rowid).'"'.$checked.' style="margin-right: 8px;">';
         print '<strong>'.$label.'</strong>'.$location;
         print '</label>';
         print '</div>';
-        
-        $i++;
     }
-    
+
     print '</div>';
     print '</td>';
     print '</tr>';
@@ -176,7 +172,7 @@ print dol_get_fiche_end();
 print '<br>';
 
 print '<div class="tabsAction">';
-print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=resetalerts&token='.newToken().'">'.$langs->trans("ResetAllAlerts").'</a>';
+print '<a class="butAction" href="'.$self.'?action=resetalerts&token='.newToken().'">'.$langs->trans("ResetAllAlerts").'</a>';
 print '</div>';
 
 print '<br>';
