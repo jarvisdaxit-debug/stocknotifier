@@ -1,0 +1,41 @@
+# Copyright (C) 2025 Daxit Solutions
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+
+CHARSET=UTF-8
+
+Module136402Name=Stock Notifier
+Module136402Desc=Système d'alerte de stock critique automatique
+
+StocknotifierSetup=Configuration Stock Notifier
+Settings=Paramètres
+About=À propos
+
+AlertEmailAddress=Adresse e-mail pour les alertes
+ExcludeProductsNotForSale=Exclure les produits non destinés à la vente
+ExcludeProductsNotForPurchase=Exclure les produits non destinés à l'achat
+ResetAllAlerts=Réinitialiser toutes les alertes
+AlertsResetSuccess=Toutes les alertes ont été réinitialisées avec succès
+
+TriggerInstructions=Fonctionnement des alertes
+TriggerDescription=Les alertes e-mail sont envoyées automatiquement à chaque mouvement de stock (entrée, sortie, correction, transfert) lorsque le stock d'un produit atteint ou passe en dessous de son seuil d'alerte. Une seule alerte est envoyée par produit jusqu'à ce que le stock repasse au-dessus du seuil.
+
+StockAlertEmailSubject=Alerte Stock : %s en rupture
+StockAlertEmailTitle=Alerte de Stock Critique
+StockAlertEmailIntro=Le produit suivant a atteint un niveau de stock critique suite à un mouvement de stock.
+StockAlertEmailFooter=Ceci est un message automatique. Veuillez vérifier le stock et passer commande si nécessaire.
+
+Ref=Référence
+Label=Libellé
+CurrentStock=Stock Actuel
+AlertThreshold=Seuil d'Alerte
+MissingQuantity=Quantité Manquante
+
+ModuleName=Nom du module
+Version=Version
+Publisher=Éditeur
+URL=Site Web
+License=Licence
