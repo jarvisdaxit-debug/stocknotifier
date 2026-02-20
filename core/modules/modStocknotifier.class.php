@@ -15,11 +15,11 @@ class modStocknotifier extends DolibarrModules
         $this->family = "products";
         $this->module_position = '90';
         $this->name = preg_replace('/^mod/i', '', get_class($this));
-        $this->description = "Alertes e-mail temps réel sur seuils de stock";
-        $this->descriptionlong = "Envoi automatique d’alertes e-mail lors de mouvements de stock critiques";
+        $this->description = "Real-time email alerts for critical stock levels";
+        $this->descriptionlong = "Automatic email alerts when product stock reaches or falls below threshold. Supports multi-warehouse monitoring with selective filtering.";
         $this->editor_name = 'Daxit Solutions';
         $this->editor_url = '';
-        $this->version = '1.0.3';
+        $this->version = '1.0.6';
         $this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
         $this->picto = 'stock';
 
