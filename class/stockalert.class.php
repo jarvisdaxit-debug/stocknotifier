@@ -89,19 +89,15 @@ class StockAlert extends CommonObject
         }
 
         if ($obj->stock_actuel <= $obj->seuil_stock_alerte) {
-            if (!$this->config->isAlertSent($obj->rowid)) {
-                return array(
-                    'rowid' => (int) $obj->rowid,
-                    'ref' => $obj->ref,
-                    'label' => $obj->label,
-                    'stock_actuel' => (int) $obj->stock_actuel,
-                    'seuil_alerte' => (int) $obj->seuil_alerte,
-                    'manquant' => max(0, $obj->seuil_alerte - $obj->stock_actuel)
-                );
-            }
-        } else {
-            // Stock recovered, reset alert flag
-            $this->config->resetAlertSent($obj->rowid);
+            // Always send alert when stock is below threshold (no anti-spam)
+            return array(
+                'rowid' => (int) $obj->rowid,
+                'ref' => $obj->ref,
+                'label' => $obj->label,
+                'stock_actuel' => (int) $obj->stock_actuel,
+                'seuil_alerte' => (int) $obj->seuil_alerte,
+                'manquant' => max(0, $obj->seuil_alerte - $obj->stock_actuel)
+            );
         }
 
         return null;
