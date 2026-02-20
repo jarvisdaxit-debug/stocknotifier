@@ -16,7 +16,7 @@ if (!$res) die("Include of main fails");
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 dol_include_once('/stocknotifier/lib/stocknotifier.lib.php');
 dol_include_once('/stocknotifier/class/notifierconfig.class.php');
-dol_include_once('/product/class/entrepot.class.php', 'Entrepot');
+require_once DOL_DOCUMENT_ROOT.'/product/stock/class/entrepot.class.php';
 
 $langs->loadLangs(array("admin", "stocknotifier@stocknotifier"));
 
