@@ -19,7 +19,7 @@ class modStocknotifier extends DolibarrModules
         $this->descriptionlong = "Envoi automatique d’alertes e-mail lors de mouvements de stock critiques";
         $this->editor_name = 'Daxit Solutions';
         $this->editor_url = '';
-        $this->version = '1.0.0';
+        $this->version = '1.0.3';
         $this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
         $this->picto = 'stock';
 

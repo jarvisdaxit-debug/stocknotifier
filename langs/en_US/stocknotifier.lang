@@ -43,3 +43,9 @@ Publisher=Publisher
 URL=Website
 License=License
 
+Features=Features
+FeatureRealTimeAlerts=Real-time email alerts on stock movements
+FeatureMultiWarehouse=Multi-warehouse monitoring with selection
+FeatureEmailNotifications=Professional HTML email notifications
+FeatureAntiSpam=Anti-spam protection (one alert per product)
+

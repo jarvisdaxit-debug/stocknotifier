@@ -42,3 +42,9 @@ Version=Version
 Publisher=Éditeur
 URL=Site Web
 License=Licence
+
+Features=Fonctionnalités
+FeatureRealTimeAlerts=Alertes e-mail en temps réel sur les mouvements de stock
+FeatureMultiWarehouse=Surveillance multi-entrepôts avec sélection
+FeatureEmailNotifications=Notifications email avec format HTML professionnel
+FeatureAntiSpam=Protection anti-spam (une alerte par produit)

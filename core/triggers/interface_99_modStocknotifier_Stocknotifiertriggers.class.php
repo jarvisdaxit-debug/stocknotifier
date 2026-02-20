@@ -22,7 +22,7 @@ class InterfaceStocknotifiertriggers extends DolibarrTriggers
         $this->name = preg_replace('/^Interface/i', '', get_class($this));
         $this->family = "stock";
         $this->description = "Stock Notifier triggers for stock movements";
-        $this->version = '1.0.2';
+        $this->version = '1.0.3';
         $this->picto = 'stock';
     }
 

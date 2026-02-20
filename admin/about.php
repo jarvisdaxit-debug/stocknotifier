@@ -18,12 +18,17 @@ if (!$res) die("Include of main fails");
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 dol_include_once('/stocknotifier/lib/stocknotifier.lib.php');
+dol_include_once('/stocknotifier/core/modules/modStocknotifier.class.php');
 
 $langs->loadLangs(array("admin", "stocknotifier@stocknotifier"));
 
 if (!$user->admin) {
     accessforbidden();
 }
+
+// Get module version dynamically
+$module = new modStocknotifier($db);
+$moduleVersion = $module->version ?: '1.0.0';
 
 llxHeader('', $langs->trans("About"));
 
@@ -46,7 +51,7 @@ print '</tr>';
 
 print '<tr class="oddeven">';
 print '<td>'.$langs->trans("Version").'</td>';
-print '<td>1.0.0</td>';
+print '<td><strong>'.$moduleVersion.'</strong></td>';
 print '</tr>';
 
 print '<tr class="oddeven">';
@@ -56,17 +61,29 @@ print '</tr>';
 
 print '<tr class="oddeven">';
 print '<td>'.$langs->trans("URL").'</td>';
-print '<td><a href="https://daxit.be" target="_blank">https://daxit.be</a></td>';
+print '<td><a href="https://daxit.be" target="_blank" rel="noopener noreferrer">https://daxit.be</a></td>';
 print '</tr>';
 
 print '<tr class="oddeven">';
 print '<td>'.$langs->trans("License").'</td>';
-print '<td>GPL v3</td>';
+print '<td>GPL v3+</td>';
 print '</tr>';
 
 print '</table>';
 
 print dol_get_fiche_end();
+
+print '<br><br>';
+
+print '<div class="info">';
+print '<p><strong>'.$langs->trans("Features").'</strong></p>';
+print '<ul>';
+print '<li>'.$langs->trans("FeatureRealTimeAlerts").'</li>';
+print '<li>'.$langs->trans("FeatureMultiWarehouse").'</li>';
+print '<li>'.$langs->trans("FeatureEmailNotifications").'</li>';
+print '<li>'.$langs->trans("FeatureAntiSpam").'</li>';
+print '</ul>';
+print '</div>';
 
 llxFooter();
 $db->close();
