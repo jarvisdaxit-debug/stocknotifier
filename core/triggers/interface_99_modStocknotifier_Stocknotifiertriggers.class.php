@@ -9,6 +9,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
 dol_include_once('/stocknotifier/class/stockalert.class.php');
+dol_include_once('/stocknotifier/class/notifierconfig.class.php');
 
 /**
  * Class InterfaceStocknotifiertriggers
@@ -22,7 +23,7 @@ class InterfaceStocknotifiertriggers extends DolibarrTriggers
         $this->name = preg_replace('/^Interface/i', '', get_class($this));
         $this->family = "stock";
         $this->description = "Stock Notifier triggers for stock movements";
-        $this->version = '1.0.4';
+        $this->version = '1.0.5';
         $this->picto = 'stock';
     }
 
@@ -40,91 +41,92 @@ class InterfaceStocknotifiertriggers extends DolibarrTriggers
     {
         global $db;
         
-        dol_syslog("========== STOCKNOTIFIER TRIGGER START ==========");
-        dol_syslog("Action: " . $action);
-        dol_syslog("Object type: " . get_class($object));
-        
-        if (!isModEnabled('stocknotifier')) {
-            dol_syslog("Module not enabled - exiting");
-            return 0;
-        }
-
-        // Check for product-related actions (including stock movements)
-        // Dolibarr uses these trigger names
+        // Only process stock-related actions
         $stockActions = array(
             'STOCK_MOVEMENT',
+            'STOCK_MOVEMENT_LINE',
             'PRODUCT_STOCK_UPDATE', 
             'STOCK_CORRECT',
             'STOCK_TRANSFER',
-            'PRODUCT_CREATE',  // Check after creation too
         );
         
         if (!in_array($action, $stockActions, true)) {
-            dol_syslog("Action not in stock actions list - exiting");
             return 0;
         }
 
-        // Try to get product_id from different possible locations
+        dol_syslog("===== STOCKNOTIFIER TRIGGER FIRED =====");
+        dol_syslog("Action: " . $action);
+        
+        // Check module is enabled
+        if (!isModEnabled('stocknotifier')) {
+            dol_syslog("Module not enabled - skipping");
+            return 0;
+        }
+
+        // Get product ID from various possible locations
         $product_id = 0;
         
-        // Try object->product_id
-        if (!empty($object->product_id)) {
-            $product_id = $object->product_id;
+        // For stock movement objects
+        if (!empty($object) && is_object($object)) {
+            // Common: fk_product (used in StockMovement)
+            if (!empty($object->fk_product)) {
+                $product_id = (int) $object->fk_product;
+            }
+            // Alternative: product_id
+            elseif (!empty($object->product_id)) {
+                $product_id = (int) $object->product_id;
+            }
+            // For product object itself
+            elseif (!empty($object->id) && !empty($object->element) && $object->element == 'product') {
+                $product_id = (int) $object->id;
+            }
+            // Alternative: rowid
+            elseif (!empty($object->rowid)) {
+                $product_id = (int) $object->rowid;
+            }
         }
-        // Try object->fk_product (some triggers use this)
-        elseif (!empty($object->fk_product)) {
-            $product_id = $object->fk_product;
-        }
-        // Try object->id (for product object itself)
-        elseif (!empty($object->id) && !empty($object->element) && $object->element == 'product') {
-            $product_id = $object->id;
-        }
+        
+        dol_syslog("Product ID found: " . $product_id);
 
         if (empty($product_id) || $product_id <= 0) {
-            dol_syslog("No product_id found - object: " . print_r($object, true));
+            dol_syslog("No valid product_id found - object: " . get_class($object));
             return 0;
         }
 
-        dol_syslog("Processing product ID: " . $product_id);
-
-        // Check if email is configured
-        dol_include_once('/stocknotifier/class/notifierconfig.class.php');
+        // Get configuration
         $config = new NotifierConfig($db);
         $email = $config->getAlertEmail();
         
+        dol_syslog("Configured email: " . ($email ? $email : 'NONE'));
+        
         if (empty($email)) {
-            dol_syslog("ERROR: No email configured for alerts!");
+            dol_syslog("ERROR: No email configured - check module setup");
             return 0;
         }
-        
-        dol_syslog("Email configured: " . $email);
 
-        // Check stock level
+        // Check stock and send alert
         try {
             $stockAlert = new StockAlert($db);
             $product = $stockAlert->checkProductStock($product_id);
             
-            dol_syslog("Stock check result: " . ($product ? print_r($product, true) : 'null'));
-            
-            if (is_array($product)) {
-                dol_syslog("Alert condition met - sending email...");
+            if (is_array($product) && !empty($product)) {
+                dol_syslog("Stock alert condition met!");
+                dol_syslog("Current stock: " . $product['stock_actuel'] . " / Threshold: " . $product['seuil_alerte']);
+                
                 $result = $stockAlert->sendAlertEmail($product);
                 
                 if ($result > 0) {
-                    dol_syslog("SUCCESS: Stock alert sent for product ID: " . $product_id);
-                } elseif ($result < 0) {
-                    dol_syslog("ERROR: Failed to send stock alert: " . $stockAlert->error);
+                    dol_syslog("SUCCESS: Email sent for product " . $product['ref']);
                 } else {
-                    dol_syslog("ERROR: sendAlertEmail returned 0");
+                    dol_syslog("FAILURE: sendAlertEmail returned " . $result . " - Error: " . $stockAlert->error);
                 }
             } else {
-                dol_syslog("No alert needed - stock is above threshold or alert already sent");
+                dol_syslog("No alert needed - stock above threshold OR alert already sent");
             }
         } catch (Exception $e) {
             dol_syslog("EXCEPTION: " . $e->getMessage());
         }
 
-        dol_syslog("========== STOCKNOTIFIER TRIGGER END ==========");
         return 0;
     }
 }
