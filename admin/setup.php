@@ -108,18 +108,23 @@ print '</td>';
 print '</tr>';
 
 // Fetch all active warehouses
-$sql = "SELECT rowid, libelle as label, lieu as location";
-$sql .= " FROM ".MAIN_DB_PREFIX."entrepot";
-$sql .= " WHERE statut = 1";
-$sql .= " ORDER BY libelle ASC";
+$sql = "SELECT e.rowid, e.libelle as label, e.lieu as location";
+$sql .= " FROM ".MAIN_DB_PREFIX."entrepot as e";
+$sql .= " WHERE e.statut = 1";
+$sql .= " ORDER BY e.libelle ASC";
 
+dol_syslog("admin/setup.php::Fetch warehouses", LOG_DEBUG);
 $resql = $db->query($sql);
 $warehouses = array();
 if ($resql) {
+    $num = $db->num_rows($resql);
+    dol_syslog("admin/setup.php::Found ".$num." active warehouses", LOG_DEBUG);
     while ($obj = $db->fetch_object($resql)) {
         $warehouses[] = $obj;
     }
     $db->free($resql);
+} else {
+    dol_syslog("admin/setup.php::Error fetching warehouses: ".$db->lasterror(), LOG_ERR);
 }
 
 // Get selected warehouses
