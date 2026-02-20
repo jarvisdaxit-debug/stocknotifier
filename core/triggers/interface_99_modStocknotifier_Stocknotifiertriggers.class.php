@@ -22,7 +22,7 @@ class InterfaceStocknotifiertriggers extends DolibarrTriggers
         $this->name = preg_replace('/^Interface/i', '', get_class($this));
         $this->family = "stock";
         $this->description = "Stock Notifier triggers for stock movements";
-        $this->version = '1.0.3';
+        $this->version = '1.0.4';
         $this->picto = 'stock';
     }
 
@@ -38,43 +38,93 @@ class InterfaceStocknotifiertriggers extends DolibarrTriggers
      */
     public function runTrigger($action, $object, $user, $langs, $conf)
     {
+        global $db;
+        
+        dol_syslog("========== STOCKNOTIFIER TRIGGER START ==========");
+        dol_syslog("Action: " . $action);
+        dol_syslog("Object type: " . get_class($object));
+        
         if (!isModEnabled('stocknotifier')) {
+            dol_syslog("Module not enabled - exiting");
             return 0;
         }
 
-        // Only process stock-related actions
-        $stockActions = array('STOCK_MOVEMENT', 'STOCK_CORRECT', 'STOCK_TRANSFER');
+        // Check for product-related actions (including stock movements)
+        // Dolibarr uses these trigger names
+        $stockActions = array(
+            'STOCK_MOVEMENT',
+            'PRODUCT_STOCK_UPDATE', 
+            'STOCK_CORRECT',
+            'STOCK_TRANSFER',
+            'PRODUCT_CREATE',  // Check after creation too
+        );
+        
         if (!in_array($action, $stockActions, true)) {
+            dol_syslog("Action not in stock actions list - exiting");
             return 0;
         }
 
-        // Check if product_id is available
-        if (empty($object->product_id) || $object->product_id <= 0) {
-            dol_syslog("Trigger '".$this->name."' - No product_id in object", LOG_DEBUG);
+        // Try to get product_id from different possible locations
+        $product_id = 0;
+        
+        // Try object->product_id
+        if (!empty($object->product_id)) {
+            $product_id = $object->product_id;
+        }
+        // Try object->fk_product (some triggers use this)
+        elseif (!empty($object->fk_product)) {
+            $product_id = $object->fk_product;
+        }
+        // Try object->id (for product object itself)
+        elseif (!empty($object->id) && !empty($object->element) && $object->element == 'product') {
+            $product_id = $object->id;
+        }
+
+        if (empty($product_id) || $product_id <= 0) {
+            dol_syslog("No product_id found - object: " . print_r($object, true));
             return 0;
         }
 
-        dol_syslog("Trigger '".$this->name."' for action '".$action."' - Product ID: ".$object->product_id, LOG_INFO);
+        dol_syslog("Processing product ID: " . $product_id);
 
+        // Check if email is configured
+        dol_include_once('/stocknotifier/class/notifierconfig.class.php');
+        $config = new NotifierConfig($db);
+        $email = $config->getAlertEmail();
+        
+        if (empty($email)) {
+            dol_syslog("ERROR: No email configured for alerts!");
+            return 0;
+        }
+        
+        dol_syslog("Email configured: " . $email);
+
+        // Check stock level
         try {
-            $stockAlert = new StockAlert($this->db);
-            $product = $stockAlert->checkProductStock($object->product_id);
+            $stockAlert = new StockAlert($db);
+            $product = $stockAlert->checkProductStock($product_id);
+            
+            dol_syslog("Stock check result: " . ($product ? print_r($product, true) : 'null'));
             
             if (is_array($product)) {
+                dol_syslog("Alert condition met - sending email...");
                 $result = $stockAlert->sendAlertEmail($product);
                 
                 if ($result > 0) {
-                    dol_syslog("Stock alert sent for product ID: ".$object->product_id, LOG_INFO);
+                    dol_syslog("SUCCESS: Stock alert sent for product ID: " . $product_id);
                 } elseif ($result < 0) {
-                    dol_syslog("Failed to send stock alert for product ID ".$object->product_id.": ".$stockAlert->error, LOG_ERR);
-                    setEventMessages($langs->trans("StockAlertSendError", $product['ref']), null, 'warnings');
+                    dol_syslog("ERROR: Failed to send stock alert: " . $stockAlert->error);
+                } else {
+                    dol_syslog("ERROR: sendAlertEmail returned 0");
                 }
+            } else {
+                dol_syslog("No alert needed - stock is above threshold or alert already sent");
             }
         } catch (Exception $e) {
-            dol_syslog("Trigger '".$this->name."' ERROR: ".$e->getMessage(), LOG_ERR);
-            // Don't block the stock operation, just log the error
+            dol_syslog("EXCEPTION: " . $e->getMessage());
         }
 
+        dol_syslog("========== STOCKNOTIFIER TRIGGER END ==========");
         return 0;
     }
 }
